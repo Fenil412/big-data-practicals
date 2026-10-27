@@ -1,0 +1,41 @@
+HADOOP COMMANDS — QUICK PRACTICAL REVISION
+Start services (Windows, from Hadoop sbin):
+    start-dfs.cmd
+    start-yarn.cmd
+    jps
+
+HDFS user commands:
+    hdfs dfs -ls /
+    hdfs dfs -mkdir -p /user/fenil
+    hdfs dfs -put local.txt /user/fenil/
+    hdfs dfs -copyFromLocal local.txt /user/fenil/
+    hdfs dfs -cat /user/fenil/local.txt
+    hdfs dfs -get /user/fenil/local.txt .
+    hdfs dfs -tail /user/fenil/local.txt
+    hdfs dfs -rm /user/fenil/local.txt
+    hdfs dfs -rm -r /user/fenil/folder
+    hdfs dfs -du -h /user
+    hdfs dfs -df -h
+    hdfs dfs -chmod 755 /user/fenil/local.txt
+    hdfs dfs -setrep -w 2 /user/fenil/local.txt
+    hdfs dfs -stat %r /user/fenil/local.txt
+
+Admin/health:
+    hdfs dfsadmin -report
+    hdfs dfsadmin -safemode get
+    hdfs fsck /
+    hdfs fsck / -files -blocks -locations
+
+MapReduce:
+    hadoop classpath
+    jar -cf program.jar -C build .
+    hadoop jar program.jar WordCount /input /output
+    hdfs dfs -cat /output/part-r-00000
+
+Remember:
+- HDFS paths like /input are not Windows paths.
+- `-put` copies from local file system to HDFS.
+- `-get` copies from HDFS to local file system.
+- Delete an existing output folder before rerunning a job.
+- `dfsadmin -report` reports cluster capacity and DataNodes.
+- `fsck` checks file/block health; it does not repair all problems automatically.

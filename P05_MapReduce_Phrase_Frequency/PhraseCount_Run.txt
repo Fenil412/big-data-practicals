@@ -1,0 +1,26 @@
+OPTIONAL: EXACT PHRASE FREQUENCY (each line is one phrase)
+This extra Java file aligns literally with the course outline's phrase-frequency wording.
+
+Input phrase_lines.txt:
+big data
+hadoop mapreduce
+big data
+Hadoop MapReduce
+big data
+
+Compile:
+    mkdir build_pc
+    for /f "delims=" %i in ('hadoop classpath') do javac -cp "%i" -d build_pc PhraseCount.java
+    jar -cf phrasecount.jar -C build_pc .
+Run:
+    hdfs dfs -mkdir -p /phraseinput
+    hdfs dfs -put -f phrase_lines.txt /phraseinput/
+    hdfs dfs -rm -r -f /phraseout
+    hadoop jar phrasecount.jar PhraseCount /phraseinput /phraseout
+    hdfs dfs -cat /phraseout/part-r-00000
+
+Expected output (key order may vary):
+big data          3
+hadoop mapreduce  2
+
+The Mapper lowercases each line, so `hadoop mapreduce` and `Hadoop MapReduce` count as the same phrase. This counts exact whole-line phrases, not every sliding phrase within a sentence.

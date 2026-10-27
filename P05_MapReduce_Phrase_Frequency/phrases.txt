@@ -1,0 +1,3 @@
+my name is sart
+hadoop is big data
+map reduce is useful

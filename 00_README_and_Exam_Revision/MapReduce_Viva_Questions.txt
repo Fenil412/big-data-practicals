@@ -1,0 +1,60 @@
+MAPREDUCE VIVA — HIGH PRIORITY
+1. What is Hadoop MapReduce?
+   A distributed programming model that processes input as key/value pairs through map, shuffle/sort, and reduce stages.
+
+2. What does a Mapper do?
+   Processes each input record and emits intermediate key/value pairs.
+
+3. What does a Reducer do?
+   Receives all intermediate values for a key and aggregates or processes them.
+
+4. What is shuffle and sort?
+   Hadoop transfers mapper output to reducers, groups records by key, and sorts keys before reduce processing.
+
+5. What is a Combiner?
+   Optional local aggregation on mapper output that can reduce network transfer. Hadoop may run it zero or multiple times.
+
+6. What is a Partitioner?
+   Chooses the reducer for each intermediate key. The same key must go to the same reducer.
+
+7. Mapper vs Reducer count?
+   Mapper count is driven mainly by input splits; reducer count is configured for the job. Multiple reducers can produce multiple output part files.
+
+8. Why remove output before rerunning?
+   Hadoop generally requires the output directory not to exist.
+
+9. What does WordCount output?
+   (word, 1) from Mapper; Reducer sums values for each word.
+
+10. What is HDFS?
+    Hadoop Distributed File System, storing files as blocks across DataNodes, with namespace metadata managed by NameNode.
+
+11. NameNode vs DataNode?
+    NameNode manages filesystem metadata and block locations; DataNodes store blocks and serve read/write requests.
+
+12. What is YARN?
+    Resource management and scheduling layer; ResourceManager and NodeManager are key services.
+
+13. Why is more reducer count not always faster?
+    Task setup/scheduling overhead can outweigh parallelism on small data or a single-node system.
+
+14. MongoDB CRUD?
+    Create: insertOne/insertMany; Read: find/findOne; Update: updateOne/updateMany; Delete: deleteOne/deleteMany.
+
+15. MongoDB MapReduce vs aggregation?
+    MapReduce uses map/reduce functions and is deprecated since MongoDB 5.0; aggregation pipelines are preferred in modern MongoDB.
+
+16. Cassandra primary key?
+    It determines row uniqueness and data distribution. Partition-key design matters; queries generally need partition-key values.
+
+17. Can Cassandra execute native CQL MapReduce?
+    No native CQL MapReduce command. Use Spark/Hadoop integration or export rows to a MapReduce workflow.
+
+18. Spark MLlib?
+    Spark's scalable machine-learning library; LinearRegression and KMeans are common algorithms.
+
+19. What are HDFS replication and block?
+    A file is split into blocks; replication stores copies of blocks according to the replication factor.
+
+20. How do you verify output?
+    Use `hdfs dfs -ls /output` and `hdfs dfs -cat /output/part-r-00000` (or all `part-r-*` files).

@@ -1,0 +1,4 @@
+Ahmedabad, Indian restaurant, rating 4.2
+Surat, Gujarati thali, rating 4.5
+Ahmedabad, Cafe, rating 4.0
+Rajkot, Indian restaurant, rating 4.1
