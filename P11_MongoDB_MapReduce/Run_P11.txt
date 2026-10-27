@@ -1,0 +1,130 @@
+====================================================================
+PRACTICAL 11 — RUN GUIDE
+MongoDB MapReduce (Hadoop-style on exported data)
+====================================================================
+
+CONCEPT
+-------
+MongoDB's native mapReduce is deprecated since v5.0. This practical
+shows the Hadoop-equivalent approach:
+  - Export MongoDB collection to a flat CSV file.
+  - Upload to HDFS.
+  - Run MongoRestaurantMapReduce.java (Hadoop MapReduce job).
+
+STEP 0 — Create input CSV (mongo_restaurants.csv)
+---------------------------------------------------
+Create the file manually OR export from MongoDB.
+
+Method A — create manually (easiest for exam):
+  Create a file called mongo_restaurants.csv with this content:
+  -------
+  R001,Sample Dhaba,Manhattan,Indian,4.2
+  R002,Sample Cafe,Brooklyn,Cafe,4.0
+  R003,Sample Thali House,Queens,Indian,4.5
+  -------
+
+Method B — export from MongoDB:
+  In terminal (Linux/WSL):
+    mongoexport --db restaurantDB \
+                --collection restaurants \
+                --type csv \
+                --fields restaurant_id,name,borough,cuisine,rating \
+                --out mongo_restaurants.csv
+
+  On Windows (if mongoexport is in PATH):
+    mongoexport --db restaurantDB --collection restaurants --type csv ^
+                --fields restaurant_id,name,borough,cuisine,rating ^
+                --out mongo_restaurants.csv
+
+====================================================================
+STEP 1 — Start Hadoop (if not already running)
+====================================================================
+  start-all.sh          (Linux/WSL)
+  start-all.cmd         (Windows — from %HADOOP_HOME%\sbin)
+
+  Verify:
+    hdfs dfsadmin -report
+
+====================================================================
+STEP 2 — Upload input file to HDFS
+====================================================================
+  hdfs dfs -mkdir -p /user/p11/input
+  hdfs dfs -put mongo_restaurants.csv /user/p11/input/
+
+  Verify:
+    hdfs dfs -ls /user/p11/input/
+
+====================================================================
+STEP 3 — Compile the Java file
+====================================================================
+  Set HADOOP_CLASSPATH:
+    Linux/WSL:
+      export HADOOP_CLASSPATH=$(hadoop classpath)
+
+    Windows CMD:
+      for /f "tokens=*" %i in ('hadoop classpath') do set HADOOP_CLASSPATH=%i
+
+  Compile:
+    javac -classpath "%HADOOP_CLASSPATH%" MongoRestaurantMapReduce.java
+
+  Create JAR:
+    jar cf mongo_mr.jar MongoRestaurantMapReduce*.class
+
+====================================================================
+STEP 4 — Run the MapReduce job
+====================================================================
+  hadoop jar mongo_mr.jar MongoRestaurantMapReduce \
+      /user/p11/input \
+      /user/p11/output
+
+  NOTE: Output directory must NOT exist before running.
+  If it exists, delete it first:
+    hdfs dfs -rm -r /user/p11/output
+
+====================================================================
+STEP 5 — View the Output
+====================================================================
+  hdfs dfs -cat /user/p11/output/part-r-00000
+
+====================================================================
+EXPECTED OUTPUT
+====================================================================
+  Cafe    1
+  Indian  2
+
+  Explanation:
+    "Indian" appears in 2 rows (R001 and R003) → count = 2
+    "Cafe"   appears in 1 row  (R002)           → count = 1
+
+====================================================================
+BONUS — Native MongoDB alternative (run in mongosh)
+====================================================================
+  // Legacy mapReduce (MongoDB < 5.0 only):
+  var mapFn   = function() { emit(this.cuisine, 1); };
+  var reduceFn = function(key, values) { return Array.sum(values); };
+  db.restaurants.mapReduce(mapFn, reduceFn, { out: "cuisine_counts" });
+  db.cuisine_counts.find();
+
+  // Modern aggregation pipeline (MongoDB 5.0+, RECOMMENDED):
+  db.restaurants.aggregate([
+    { $group: { _id: "$cuisine", count: { $sum: 1 } } }
+  ]);
+
+  Expected output:
+    { _id: "Indian", count: 2 }
+    { _id: "Cafe",   count: 1 }
+
+====================================================================
+VIVA POINTS
+====================================================================
+  Q: Why use Hadoop MapReduce instead of MongoDB mapReduce?
+  A: MongoDB deprecated mapReduce in v5.0. For very large datasets,
+     Hadoop distributes the job across a cluster. MongoDB's native
+     aggregation pipeline is the modern alternative for smaller data.
+
+  Q: What does the Mapper do here?
+  A: Reads each CSV line, extracts the cuisine field, emits (cuisine, 1).
+
+  Q: What does the Reducer do?
+  A: Sums all 1s for each cuisine key to get the restaurant count.
+====================================================================

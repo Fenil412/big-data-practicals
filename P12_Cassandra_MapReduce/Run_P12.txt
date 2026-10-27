@@ -1,0 +1,140 @@
+====================================================================
+PRACTICAL 12 — RUN GUIDE
+Cassandra MapReduce (Hadoop-style on exported data)
+====================================================================
+
+CONCEPT
+-------
+Cassandra does NOT have a built-in MapReduce engine. The standard
+exam-approved approach:
+  1. Export the Cassandra table to a CSV file using COPY command.
+  2. Upload the CSV to HDFS.
+  3. Run a Hadoop MapReduce job (CassandraRestaurantMapReduce.java)
+     to perform grouping/counting — exactly like WordCount.
+
+STEP 0 — Create input CSV (cassandra_restaurants.csv)
+------------------------------------------------------
+Method A — create manually (easiest for exam):
+  Create a file cassandra_restaurants.csv with this content:
+  -------
+  Ahmedabad,R001,Sample Dhaba,Gujarati,4.2
+  Ahmedabad,R002,Sample Cafe,Cafe,4.0
+  Surat,R003,Sample Thali House,Gujarati,4.4
+  -------
+
+Method B — export from Cassandra using COPY command:
+  Start cqlsh and run:
+    USE college;
+    COPY restaurants_by_city
+        (city, restaurant_id, restaurant_name, cuisine, rating)
+    TO '/home/user/cassandra_restaurants.csv'
+    WITH HEADER = FALSE;
+
+  (Adjust path as needed for your OS)
+
+====================================================================
+STEP 1 — Start Hadoop (if not already running)
+====================================================================
+  start-all.sh          (Linux/WSL)
+  start-all.cmd         (Windows — from %HADOOP_HOME%\sbin)
+
+  Verify:
+    hdfs dfsadmin -report
+
+====================================================================
+STEP 2 — Upload input file to HDFS
+====================================================================
+  hdfs dfs -mkdir -p /user/p12/input
+  hdfs dfs -put cassandra_restaurants.csv /user/p12/input/
+
+  Verify:
+    hdfs dfs -ls /user/p12/input/
+
+====================================================================
+STEP 3 — Compile the Java file
+====================================================================
+  Set HADOOP_CLASSPATH:
+    Linux/WSL:
+      export HADOOP_CLASSPATH=$(hadoop classpath)
+
+    Windows CMD:
+      for /f "tokens=*" %i in ('hadoop classpath') do set HADOOP_CLASSPATH=%i
+
+  Compile:
+    javac -classpath "%HADOOP_CLASSPATH%" CassandraRestaurantMapReduce.java
+
+  Create JAR:
+    jar cf cassandra_mr.jar CassandraRestaurantMapReduce*.class
+
+====================================================================
+STEP 4 — Run the MapReduce job
+====================================================================
+  hadoop jar cassandra_mr.jar CassandraRestaurantMapReduce \
+      /user/p12/input \
+      /user/p12/output
+
+  NOTE: Output directory must NOT exist before running.
+  If it exists, delete it first:
+    hdfs dfs -rm -r /user/p12/output
+
+====================================================================
+STEP 5 — View the Output
+====================================================================
+  hdfs dfs -cat /user/p12/output/part-r-00000
+
+====================================================================
+EXPECTED OUTPUT
+====================================================================
+  Cafe       1
+  Gujarati   2
+
+  Explanation:
+    "Gujarati" appears in 2 rows (R001 Ahmedabad, R003 Surat) → count = 2
+    "Cafe"     appears in 1 row  (R002 Ahmedabad)             → count = 1
+
+====================================================================
+BONUS — PySpark alternative (if Spark is available)
+====================================================================
+  # No Cassandra connector needed — just read the same CSV in Spark:
+
+  from pyspark.sql import SparkSession
+
+  spark = SparkSession.builder.appName("CassandraRestaurant").getOrCreate()
+
+  df = spark.read.csv("cassandra_restaurants.csv",
+                      schema="city STRING, restaurant_id STRING, "
+                             "restaurant_name STRING, cuisine STRING, "
+                             "rating DOUBLE")
+
+  df.groupBy("cuisine").count().show()
+
+  # Output:
+  # +--------+-----+
+  # |cuisine |count|
+  # +--------+-----+
+  # |Cafe    |    1|
+  # |Gujarati|    2|
+  # +--------+-----+
+
+====================================================================
+VIVA POINTS
+====================================================================
+  Q: Does Cassandra support MapReduce natively?
+  A: No. Cassandra is a NoSQL database. MapReduce requires exporting
+     data to HDFS and running Hadoop, OR using Spark with the
+     Cassandra connector (spark-cassandra-connector).
+
+  Q: What is the partition key in the restaurants_by_city table?
+  A: city — it determines how Cassandra distributes rows across nodes.
+
+  Q: Why must the Cassandra connector version match Spark/Scala?
+  A: Each connector version is compiled against a specific Spark and
+     Scala version. Mismatches cause ClassNotFoundException at runtime.
+
+  Q: What does the Mapper emit for each CSV row?
+  A: (cuisine, 1) — e.g., ("Gujarati", 1).
+
+  Q: What does the Reducer do?
+  A: Sums all the 1s for each cuisine key, producing the restaurant
+     count per cuisine.
+====================================================================
