@@ -1,0 +1,95 @@
+PYTHON MAPREDUCE RUN GUIDE (Hadoop Streaming)
+=============================================
+
+IMPORTANT
+- These are Python Mapper/Reducer scripts for Hadoop Streaming, not plain `hadoop jar MyProgram.java` jobs.
+- Hadoop Streaming requires the streaming JAR shipped with your Hadoop installation. Find it with:
+  Linux: find "$HADOOP_HOME" -name 'hadoop-streaming*.jar'
+  Windows CMD: dir /s /b "%HADOOP_HOME%\*streaming*.jar"
+- On Windows, Hadoop Streaming Python scripts are most reliable under Linux/WSL or a Linux Hadoop environment. Native Windows Hadoop installations can have Python/streaming compatibility issues.
+- The examples assume Hadoop is configured and HDFS/YARN are running.
+
+A) LINUX / WSL: SETUP
+---------------------
+1. Save/extract this folder, then:
+   cd Python_MapReduce_Code
+   chmod +x *_mapper.py *_reducer.py
+   export HADOOP_HOME=/path/to/hadoop   # replace with your actual Hadoop directory
+   STREAMING_JAR=$(find "$HADOOP_HOME" -name 'hadoop-streaming*.jar' | head -n 1)
+   echo "$STREAMING_JAR"
+2. Start Hadoop if it is not already running (commands depend on your installation):
+   start-dfs.sh
+   start-yarn.sh
+   jps
+
+B) WORD COUNT
+-------------
+   hdfs dfs -mkdir -p /lpw/wordcount_input
+   hdfs dfs -put -f sample_input.txt /lpw/wordcount_input/
+   hdfs dfs -rm -r -f /lpw/wordcount_output
+   hadoop jar "$STREAMING_JAR" \
+     -files wordcount_mapper.py,wordcount_reducer.py \
+     -mapper 'python3 wordcount_mapper.py' \
+     -reducer 'python3 wordcount_reducer.py' \
+     -input /lpw/wordcount_input \
+     -output /lpw/wordcount_output
+   hdfs dfs -cat /lpw/wordcount_output/part-*
+Expected counts include: my 2, name 2, is 2, hello 1, hadoop 1, sart 1, fenil 1.
+
+C) WORD-LENGTH GROUPING (equivalent in purpose to supplied PhraseFrequency.java)
+-------------------------------------------------------------------------------
+   hdfs dfs -mkdir -p /lpw/length_input
+   hdfs dfs -put -f sample_input.txt /lpw/length_input/
+   hdfs dfs -rm -r -f /lpw/length_output
+   hadoop jar "$STREAMING_JAR" \
+     -files word_length_mapper.py,word_length_reducer.py \
+     -mapper 'python3 word_length_mapper.py' \
+     -reducer 'python3 word_length_reducer.py' \
+     -input /lpw/length_input -output /lpw/length_output
+   hdfs dfs -cat /lpw/length_output/part-*
+Note: output order of words with the same key can vary. The example input has words of lengths 2, 3, 4, 5, 6.
+
+D) SEARCH RECORDS (case-insensitive)
+------------------------------------
+   hdfs dfs -mkdir -p /lpw/search_input
+   hdfs dfs -put -f search_records.txt /lpw/search_input/   # copy the supplied P06 file here first
+   hdfs dfs -rm -r -f /lpw/search_output
+   SEARCH_TERM=ahmedabad hadoop jar "$STREAMING_JAR" \
+     -files search_records_mapper.py,search_records_reducer.py \
+     -cmdenv SEARCH_TERM=ahmedabad \
+     -mapper 'python3 search_records_mapper.py' \
+     -reducer 'python3 search_records_reducer.py' \
+     -input /lpw/search_input -output /lpw/search_output
+   hdfs dfs -cat /lpw/search_output/part-*
+Change `ahmedabad` to the desired search text. On some shells set `-cmdenv SEARCH_TERM=...` as shown.
+
+E) RESTAURANT AVERAGE RATING BY CITY
+------------------------------------
+The sample CSV has columns: restaurant,city,rating. For a real dataset, adjust column indexes in the mapper.
+   hdfs dfs -mkdir -p /lpw/restaurant_input
+   hdfs dfs -put -f restaurants.csv /lpw/restaurant_input/
+   hdfs dfs -rm -r -f /lpw/restaurant_output
+   hadoop jar "$STREAMING_JAR" \
+     -files restaurant_avg_mapper.py,restaurant_avg_reducer.py \
+     -mapper 'python3 restaurant_avg_mapper.py' \
+     -reducer 'python3 restaurant_avg_reducer.py' \
+     -input /lpw/restaurant_input -output /lpw/restaurant_output
+   hdfs dfs -cat /lpw/restaurant_output/part-*
+Expected: Ahmedabad 4.00; Surat 4.00.
+
+F) LOCAL TEST WITHOUT HADOOP (to understand mapper/reducer)
+----------------------------------------------------------
+   cat sample_input.txt | python3 wordcount_mapper.py | sort | python3 wordcount_reducer.py
+   cat sample_input.txt | python3 word_length_mapper.py | sort -k1,1n | python3 word_length_reducer.py
+This tests the scripts locally; it does not submit a Hadoop job.
+
+G) GENERAL CHECKS / TROUBLESHOOTING
+-----------------------------------
+   hdfs dfs -ls /
+   hdfs dfs -cat /lpw/wordcount_output/part-*
+   yarn application -list
+   jps
+- Hadoop output directory must not already exist; remove it before rerunning.
+- If `STREAMING_JAR` is empty, locate/install the Hadoop Streaming JAR matching your Hadoop version.
+- Make sure Python 3 is installed on every worker/container running the scripts.
+- Hadoop sorts mapper output by key before reducer input; reducer code relies on that ordering.

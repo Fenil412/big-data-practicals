@@ -1,0 +1,75 @@
+WINDOWS: START HADOOP AND RUN A JAVA MAPREDUCE PROGRAM
+Example environment: Hadoop at D:\hadoop-3.3.6, Java 8, Windows CMD.
+Use the Hadoop installation and environment variables already configured on your machine.
+
+1. Start HDFS
+Open Command Prompt:
+    D:
+    cd \hadoop-3.3.6\sbin
+    start-dfs.cmd
+
+2. Start YARN (in a second Command Prompt)
+    D:
+    cd \hadoop-3.3.6\sbin
+    start-yarn.cmd
+
+3. Verify Java daemons
+    jps
+Typical processes on a pseudo-distributed setup may include NameNode, DataNode, SecondaryNameNode, ResourceManager, and NodeManager. Names vary by configuration. If they are missing, check Hadoop logs and JAVA_HOME/HADOOP_HOME.
+
+4. Create a local working directory and input
+    mkdir D:\BIG_DATA_ANALYSIS
+Create D:\BIG_DATA_ANALYSIS\phrases.txt with:
+    my name is sart
+    hadoop is big data
+    map reduce is useful
+
+5. Compile PhraseFrequency.java
+Open CMD:
+    D:
+    cd \BIG_DATA_ANALYSIS
+    mkdir build_phrase
+    for /f "delims=" %i in ('hadoop classpath') do javac -cp "%i" -d build_phrase PhraseFrequency.java
+    jar -cf phrasefreq.jar -C build_phrase .
+
+If using a .bat file, change `%i` to `%%i`.
+Ensure the Java source file's public class name matches the filename.
+
+6. Upload input into HDFS
+    hdfs dfs -mkdir -p /pfinput
+    hdfs dfs -put -f D:\BIG_DATA_ANALYSIS\phrases.txt /pfinput/
+
+7. Run job (output directory must not already exist)
+    hdfs dfs -rm -r -f /pfoutput_p5
+    hadoop jar phrasefreq.jar PhraseFrequency /pfinput /pfoutput_p5
+
+8. See output
+    hdfs dfs -ls /pfoutput_p5
+    hdfs dfs -cat /pfoutput_p5/part-r-00000
+
+9. Run with multiple reducers (Practical 7 ToolRunner version)
+The supplied P07 source uses ToolRunner, so the generic option should be placed before the class:
+    hdfs dfs -rm -r -f /pfoutput_r2
+    hadoop jar phrasefreq.jar PhraseFrequency -D mapreduce.job.reduces=2 /pfinput /pfoutput_r2
+
+If your Hadoop build parses generic options differently, use:
+    hadoop jar phrasefreq.jar PhraseFrequency -Dmapreduce.job.reduces=2 /pfinput /pfoutput_r2
+Check the job log to confirm the reducer count. The output can be spread across part-r-00000, part-r-00001, etc.
+
+10. Re-run a job
+Hadoop normally refuses to write into an existing output directory:
+    hdfs dfs -rm -r -f /pfoutput_p5
+Then re-run the job.
+
+11. Useful web UIs (default ports; configuration may differ)
+- NameNode: http://localhost:9870
+- YARN ResourceManager: http://localhost:8088
+- MapReduce JobHistory Server, if started/configured: http://localhost:19888
+
+12. Troubleshooting
+- `hadoop`/`hdfs` not recognized: check PATH and HADOOP_HOME.
+- `javac` not recognized: install/configure a JDK and JAVA_HOME.
+- ClassNotFoundException: confirm class name and JAR contents (`jar tf phrasefreq.jar`).
+- Output directory exists: delete the output directory in HDFS first.
+- Connection refused: start NameNode/DataNode and verify core-site.xml/fs.defaultFS.
+- Job fails on Windows: inspect Hadoop logs; native winutils/configuration issues can be environment-specific.

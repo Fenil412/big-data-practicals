@@ -1,0 +1,83 @@
+RUN THE INCLUDED JAVA MAPREDUCE PROGRAMS (WINDOWS CMD)
+Prerequisite: Hadoop commands work, JDK's javac works, and HDFS/YARN are started if your Hadoop configuration uses YARN. Run commands from the folder containing the selected .java file and input text file.
+
+GENERAL COMPILE PATTERN
+    mkdir build
+    for /f "delims=" %i in ('hadoop classpath') do javac -cp "%i" -d build Program.java
+    jar -cf program.jar -C build .
+If putting these commands in a .bat file, use %%i instead of %i.
+
+A) WordCount.java
+1. Put a text file at input.txt, for example:
+       big data
+       big hadoop
+2. Compile:
+       mkdir build_wc
+       for /f "delims=" %i in ('hadoop classpath') do javac -cp "%i" -d build_wc WordCount.java
+       jar -cf wordcount.jar -C build_wc .
+3. Upload/run:
+       hdfs dfs -mkdir -p /wcinput
+       hdfs dfs -put -f input.txt /wcinput/
+       hdfs dfs -rm -r -f /wcout
+       hadoop jar wordcount.jar WordCount /wcinput /wcout
+       hdfs dfs -cat /wcout/part-r-00000
+Sample output (word order may vary):
+       big     2
+       data    1
+       hadoop  1
+
+B) SearchRecords.java
+1. Prepare records.txt with one record per line. Example:
+       Ahmedabad Indian restaurant
+       Surat Gujarati thali
+       Ahmedabad Cafe
+2. Compile:
+       mkdir build_search
+       for /f "delims=" %i in ('hadoop classpath') do javac -cp "%i" -d build_search SearchRecords.java
+       jar -cf searchrecords.jar -C build_search .
+3. Upload/run (criterion is the third program argument):
+       hdfs dfs -mkdir -p /searchinput
+       hdfs dfs -put -f records.txt /searchinput/
+       hdfs dfs -rm -r -f /searchout
+       hadoop jar searchrecords.jar SearchRecords /searchinput /searchout Ahmedabad
+       hdfs dfs -cat /searchout/part-r-00000
+Expected matching lines include the lines containing Ahmedabad, case-insensitively, each with count 1. Exact order may vary.
+
+C) PhraseFrequency.java (P05 baseline)
+Use P05_MapReduce_Phrase_Frequency/PhraseFrequency.java and phrases.txt.
+Compile the source as PhraseFrequency.java and run:
+       hdfs dfs -mkdir -p /pfinput
+       hdfs dfs -put -f phrases.txt /pfinput/
+       hdfs dfs -rm -r -f /pfout
+       hadoop jar phrasefreq.jar PhraseFrequency /pfinput /pfout
+       hdfs dfs -cat /pfout/part-r-00000
+For line `my name is sart`, expected grouping:
+       2    my, is
+       4    name, sart
+For larger input, reducer values can appear in a different order.
+
+D) P07 Combiner + Partitioner PhraseFrequency.java
+Use P07_Combiner_Partitioner/PhraseFrequency.java. Compile in its own folder (do not mix compiled classes with the baseline build):
+       mkdir build_p7
+       for /f "delims=" %i in ('hadoop classpath') do javac -cp "%i" -d build_p7 PhraseFrequency.java
+       jar -cf phrasefreq_p7.jar -C build_p7 .
+Run with 2 reducers:
+       hdfs dfs -rm -r -f /pfout2
+       hadoop jar phrasefreq_p7.jar PhraseFrequency /pfinput /pfout2 -D mapreduce.job.reduces=2
+If generic options aren't accepted after the class in your Hadoop version, try placing the option immediately after the JAR:
+       hadoop jar phrasefreq_p7.jar -D mapreduce.job.reduces=2 PhraseFrequency /pfinput /pfout2
+Check actual task count in the job log. Read every part-r-* output file, because multiple reducers can create multiple files.
+
+E) LinearRegression.java (Hadoop MapReduce, separate from P10 PySpark)
+Input CSV must have two numeric columns: area,price. The code skips a header line beginning with `area`.
+Compile:
+       mkdir build_lr
+       for /f "delims=" %i in ('hadoop classpath') do javac -cp "%i" -d build_lr LinearRegression.java
+       jar -cf linearregression.jar -C build_lr .
+Upload and run:
+       hdfs dfs -mkdir -p /lrinput
+       hdfs dfs -put -f input.csv /lrinput/
+       hdfs dfs -rm -r -f /lrout
+       hadoop jar linearregression.jar LinearRegression /lrinput /lrout
+       hdfs dfs -cat /lrout/part-r-00000
+The reducer prints record count, slope, intercept, and prediction for area 5000. Numeric values depend on your dataset. Ensure at least two distinct area values; otherwise the slope denominator can be zero.
